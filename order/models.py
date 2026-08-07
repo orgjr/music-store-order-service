@@ -1,0 +1,35 @@
+from decimal import Decimal
+from uuid import uuid4
+
+from django.db import models
+
+
+class Order(models.Model):
+    uuid = models.UUIDField(default=uuid4, editable=False, primary_key=True)
+    customer_id = models.UUIDField(default=uuid4, editable=False)
+    customer_name = models.CharField(max_length=100)
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )
+
+    class PaymentType(models.TextChoices):
+        PAYMENT_SLIP = "PS", "payment slip"
+        CREDIT_CARD = "CC", "credit card"
+        DEBIT = "DB", "debit"
+
+    payment_type = models.CharField(
+        max_length=2, choices=PaymentType.choices, default=PaymentType.PAYMENT_SLIP
+    )
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PAID = "PAID", "Paid"
+        SHIPPED = "SHIPPED", "Shipped"
+        DELIVERED = "DELIVERED", "Delivered"
+        CANCELED = "CANCELED", "Canceled"
+
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
