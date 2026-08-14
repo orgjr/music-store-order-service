@@ -1,0 +1,27 @@
+services:
+  web:
+    image: music-store-order-service:dev
+    container_name: music-store-order-service
+    build: .
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DEV_PROJECT_KEY: ${DEV_PROJECT_KEY}
+      DJANGO_DEBUG: 'True'
+      DJANGO_ALLOWED_HOSTS: '*'
+    ports:
+      - '8002:8000'
+    develop:
+      watch:
+        - path: .
+          target: /app
+          action: sync
+          ignore:
+            - .git/
+            - .venv/
+            - venv/
+            - __pycache__/
+            - .ruff_cache/
+            - tmp/
+            - db.sqlite3
+        - path: requirements.txt
+          action: rebuild

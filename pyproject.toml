@@ -1,0 +1,32 @@
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ty.rules]
+# ty has no Django support yet (astral-sh/ty#1018); model metaclass
+# attributes (objects, field assignments) are false positives.
+unresolved-attribute = "ignore"
+invalid-assignment = "ignore"
+
+[tool.djlint]
+profile = "django"
+indent = 4
+max_line_length = 88
+format_css = false
+format_js = false
+blank_line_after_tag = ""
+close_void_tags = false

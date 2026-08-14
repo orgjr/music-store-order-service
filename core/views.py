@@ -4,6 +4,9 @@ from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from docs.openapi.core.health import health_schema
+from docs.openapi.core.index import index_schema
+
 from . import uptime
 
 
@@ -14,6 +17,7 @@ def _build_url(name, fallback_path):
         return f"/{settings.API_ROOT_PREFIX.strip('/')}/{fallback_path}"
 
 
+@index_schema
 @api_view(["GET"])
 def index(request):
     api_version = settings.API_ROOT_PREFIX.strip("/").split("/")[-1].upper()
@@ -30,6 +34,7 @@ def index(request):
     )
 
 
+@health_schema
 @api_view(["GET"])
 def health(request):
     uptime_seconds = (timezone.localtime() - uptime.START_TIME).total_seconds()

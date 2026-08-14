@@ -26,7 +26,9 @@ class OrderModelTests(TestCase):
             payment_type=Order.PaymentType.CREDIT_CARD,
             status=Order.Status.PAID,
         )
-        self.assertEqual(order.customer_id, UUID("12345678-1234-5678-1234-567812345678"))
+        self.assertEqual(
+            order.customer_id, UUID("12345678-1234-5678-1234-567812345678")
+        )
         self.assertEqual(order.price, Decimal("99.90"))
         self.assertEqual(order.payment_type, Order.PaymentType.CREDIT_CARD)
         self.assertEqual(order.status, Order.Status.PAID)

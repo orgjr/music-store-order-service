@@ -1,5 +1,5 @@
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from django.db import models
 
@@ -15,7 +15,6 @@ class Order(models.Model):
     class PaymentType(models.TextChoices):
         PAYMENT_SLIP = "PS", "payment slip"
         CREDIT_CARD = "CC", "credit card"
-        DEBIT = "DB", "debit"
 
     payment_type = models.CharField(
         max_length=2, choices=PaymentType.choices, default=PaymentType.PAYMENT_SLIP
@@ -33,3 +32,11 @@ class Order(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        if not isinstance(self.uuid, UUID):
+            self.uuid = uuid4()

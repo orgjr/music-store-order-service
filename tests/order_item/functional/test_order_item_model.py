@@ -31,19 +31,29 @@ class OrderItemModelTests(TestCase):
             product_quantity=3,
             item_price=Decimal("49.90"),
         )
-        self.assertEqual(item.product_code, UUID("12345678-1234-5678-1234-567812345678"))
+        self.assertEqual(
+            item.product_code, UUID("12345678-1234-5678-1234-567812345678")
+        )
         self.assertEqual(item.product_description, "Limited edition")
         self.assertEqual(item.product_quantity, 3)
         self.assertEqual(item.item_price, Decimal("49.90"))
 
     def test_order_items_are_related_to_order(self):
-        OrderItem.objects.create(order=self.order, product_name="Vinyl", product_quantity=1)
-        OrderItem.objects.create(order=self.order, product_name="CD", product_quantity=1)
+        OrderItem.objects.create(
+            order=self.order, product_name="Vinyl", product_quantity=1
+        )
+        OrderItem.objects.create(
+            order=self.order, product_name="CD", product_quantity=1
+        )
         self.assertEqual(self.order.items.count(), 2)
 
     def test_order_items_are_ordered_by_product_name(self):
-        OrderItem.objects.create(order=self.order, product_name="Vinyl", product_quantity=1)
-        OrderItem.objects.create(order=self.order, product_name="CD", product_quantity=1)
+        OrderItem.objects.create(
+            order=self.order, product_name="Vinyl", product_quantity=1
+        )
+        OrderItem.objects.create(
+            order=self.order, product_name="CD", product_quantity=1
+        )
         names = list(self.order.items.values_list("product_name", flat=True))
         self.assertEqual(names, ["CD", "Vinyl"])
 
@@ -82,11 +92,17 @@ class OrderItemModelTests(TestCase):
 
     def test_distinct_product_codes_allowed_on_different_orders(self):
         other_order = Order.objects.create(customer_name="Jane Doe")
-        OrderItem.objects.create(order=self.order, product_name="Vinyl", product_quantity=1)
-        OrderItem.objects.create(order=other_order, product_name="CD", product_quantity=1)
+        OrderItem.objects.create(
+            order=self.order, product_name="Vinyl", product_quantity=1
+        )
+        OrderItem.objects.create(
+            order=other_order, product_name="CD", product_quantity=1
+        )
         self.assertEqual(OrderItem.objects.count(), 2)
 
     def test_deleting_order_cascades_to_items(self):
-        OrderItem.objects.create(order=self.order, product_name="Vinyl", product_quantity=1)
+        OrderItem.objects.create(
+            order=self.order, product_name="Vinyl", product_quantity=1
+        )
         self.order.delete()
         self.assertEqual(OrderItem.objects.count(), 0)
