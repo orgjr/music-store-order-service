@@ -8,13 +8,15 @@ class Order(models.Model):
     uuid = models.UUIDField(default=uuid4, editable=False, primary_key=True)
     customer_id = models.UUIDField(default=uuid4, editable=False)
     customer_name = models.CharField(max_length=100)
+    customer_email = models.CharField(max_length=100, null=True, blank=True)
+    customer_doc = models.CharField(max_length=11)
     price = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal("0.00")
     )
 
     class PaymentType(models.TextChoices):
-        PAYMENT_SLIP = "PS", "payment slip"
-        CREDIT_CARD = "CC", "credit card"
+        PAYMENT_SLIP = "PS", "Payment slip"
+        CREDIT_CARD = "CC", "Credit card"
 
     payment_type = models.CharField(
         max_length=2, choices=PaymentType.choices, default=PaymentType.PAYMENT_SLIP
@@ -32,6 +34,10 @@ class Order(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"order: {self.uuid}, customer: {self.customer_email}"
 
     def save(self, *args, **kwargs):
         self.full_clean()

@@ -4,8 +4,7 @@ from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from docs.openapi.core.health import health_schema
-from docs.openapi.core.index import index_schema
+from docs.openapi import health_schema, index_schema
 
 from . import uptime
 

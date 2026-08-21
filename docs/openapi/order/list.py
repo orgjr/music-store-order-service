@@ -1,7 +1,6 @@
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 
-from docs.openapi.config import paginated_response
-from order.serializers import OrderSerializer
+from order.serializers import OrderResponseSerializer
 
 from .config import TAG
 
@@ -14,7 +13,7 @@ list_schema = extend_schema(
     tags=TAG,
     responses={
         200: OpenApiResponse(
-            response=paginated_response(OrderSerializer),
+            response=OrderResponseSerializer,
             description="Paginated list of orders.",
             examples=[
                 OpenApiExample(
@@ -29,11 +28,14 @@ list_schema = extend_schema(
                                 "uuid": "3f9c2d1a-7b4e-4f6a-9c2d-1a7b4e4f6a9c",
                                 "customer_id": "5e8b0c11-d2f3-4a5b-8c9d-1e2f3a4b5c6d",
                                 "customer_name": "Marina Costa",
+                                "customer_email": "marina@example.com",
+                                "customer_doc": "12345678901",
                                 "price": "129.90",
-                                "payment_type": "CC",
+                                "payment_type": "Payment slip",
                                 "status": "PENDING",
                                 "items": [],
                                 "created_at": "2026-08-07T14:30:00-03:00",
+                                "updated_at": "2026-08-07T14:30:00-03:00",
                             }
                         ],
                     },

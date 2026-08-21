@@ -1,7 +1,7 @@
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from django.db import IntegrityError
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from order.models import Order
@@ -10,99 +10,85 @@ from order_item.models import OrderItem
 
 class OrderItemModelTests(TestCase):
     def setUp(self):
-        self.order = Order.objects.create(customer_name="John Doe")
+        self.order = Order.objects.create(
+            customer_name="John Doe", customer_doc="12345678901"
+        )
 
-    def test_order_item_is_created_with_defaults(self):
+    def test_order_item_persists_catalog_snapshot(self):
+        product_code = uuid4()
         item = OrderItem.objects.create(
             order=self.order,
+            product_code=product_code,
             product_name="Vinyl",
+            product_url="https://catalog.test/vinyl",
+            product_price=Decimal("29.95"),
             product_quantity=2,
+            price=Decimal("59.90"),
         )
-        self.assertEqual(item.item_price, Decimal("0.00"))
-        self.assertIsNone(item.product_description)
-        self.assertIsInstance(item.product_code, UUID)
 
-    def test_order_item_is_created_with_custom_values(self):
-        item = OrderItem.objects.create(
-            order=self.order,
-            product_code=UUID("12345678-1234-5678-1234-567812345678"),
-            product_name="Vinyl",
-            product_description="Limited edition",
-            product_quantity=3,
-            item_price=Decimal("49.90"),
-        )
-        self.assertEqual(
-            item.product_code, UUID("12345678-1234-5678-1234-567812345678")
-        )
-        self.assertEqual(item.product_description, "Limited edition")
-        self.assertEqual(item.product_quantity, 3)
-        self.assertEqual(item.item_price, Decimal("49.90"))
-
-    def test_order_items_are_related_to_order(self):
-        OrderItem.objects.create(
-            order=self.order, product_name="Vinyl", product_quantity=1
-        )
-        OrderItem.objects.create(
-            order=self.order, product_name="CD", product_quantity=1
-        )
-        self.assertEqual(self.order.items.count(), 2)
+        self.assertIsInstance(item.uuid, UUID)
+        self.assertEqual(item.product_code, product_code)
+        self.assertEqual(item.product_price, Decimal("29.95"))
+        self.assertEqual(item.price, Decimal("59.90"))
 
     def test_order_items_are_ordered_by_product_name(self):
         OrderItem.objects.create(
-            order=self.order, product_name="Vinyl", product_quantity=1
+            order=self.order,
+            product_code=uuid4(),
+            product_name="Vinyl",
+            product_url="https://catalog.test/vinyl",
+            product_quantity=1,
         )
         OrderItem.objects.create(
-            order=self.order, product_name="CD", product_quantity=1
+            order=self.order,
+            product_code=uuid4(),
+            product_name="CD",
+            product_url="https://catalog.test/cd",
+            product_quantity=1,
         )
+
         names = list(self.order.items.values_list("product_name", flat=True))
         self.assertEqual(names, ["CD", "Vinyl"])
 
-    def test_unique_product_per_order(self):
-        product_code = UUID("12345678-1234-5678-1234-567812345678")
+    def test_product_code_must_be_unique_per_order(self):
+        product_code = uuid4()
         OrderItem.objects.create(
             order=self.order,
             product_code=product_code,
             product_name="Vinyl",
+            product_url="https://catalog.test/vinyl",
             product_quantity=1,
         )
-        with self.assertRaises(IntegrityError):
+
+        with self.assertRaises(ValidationError) as context:
             OrderItem.objects.create(
                 order=self.order,
                 product_code=product_code,
                 product_name="Vinyl",
+                product_url="https://catalog.test/vinyl",
                 product_quantity=1,
             )
 
-    def test_product_code_is_unique_globally(self):
-        product_code = UUID("12345678-1234-5678-1234-567812345678")
-        other_order = Order.objects.create(customer_name="Jane Doe")
+        self.assertIn("__all__", context.exception.message_dict)
+
+    def test_same_product_code_is_allowed_on_another_order(self):
+        product_code = uuid4()
+        other_order = Order.objects.create(
+            customer_name="Jane Doe", customer_doc="98765432100"
+        )
         OrderItem.objects.create(
             order=self.order,
             product_code=product_code,
             product_name="Vinyl",
+            product_url="https://catalog.test/vinyl",
             product_quantity=1,
         )
-        with self.assertRaises(IntegrityError):
-            OrderItem.objects.create(
-                order=other_order,
-                product_code=product_code,
-                product_name="Vinyl",
-                product_quantity=1,
-            )
+        OrderItem.objects.create(
+            order=other_order,
+            product_code=product_code,
+            product_name="Vinyl",
+            product_url="https://catalog.test/vinyl",
+            product_quantity=1,
+        )
 
-    def test_distinct_product_codes_allowed_on_different_orders(self):
-        other_order = Order.objects.create(customer_name="Jane Doe")
-        OrderItem.objects.create(
-            order=self.order, product_name="Vinyl", product_quantity=1
-        )
-        OrderItem.objects.create(
-            order=other_order, product_name="CD", product_quantity=1
-        )
         self.assertEqual(OrderItem.objects.count(), 2)
-
-    def test_deleting_order_cascades_to_items(self):
-        OrderItem.objects.create(
-            order=self.order, product_name="Vinyl", product_quantity=1
-        )
-        self.order.delete()
-        self.assertEqual(OrderItem.objects.count(), 0)

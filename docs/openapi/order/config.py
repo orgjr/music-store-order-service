@@ -19,8 +19,22 @@ VALIDATION_RESPONSE = OpenApiResponse(
     examples=[
         OpenApiExample(
             "Validation error",
-            summary="Missing required field",
-            value={"customer_name": ["This field is required."]},
+            summary="Missing checkout reference",
+            value={"cart": ["This field is required."]},
+            response_only=True,
+        ),
+    ],
+)
+
+PROCESSING_ERROR_RESPONSE = OpenApiResponse(
+    description=(
+        "The order could not be processed because a dependent service, product "
+        "validation, or database operation failed."
+    ),
+    examples=[
+        OpenApiExample(
+            "Processing error",
+            value={"order": "Order could not be processed"},
             response_only=True,
         ),
     ],

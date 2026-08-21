@@ -1,10 +1,9 @@
 # Music Store Order Service
 
-Order microservice for a music store. Exposes a REST API for managing orders (`order`)
-and order items (`order_item`) with full CRUD, application identification and
-monitoring endpoints, OpenAPI/Swagger/Redoc documentation extended to the whole domain,
-Docker support, and a test suite organized by area (endpoints, functional, serializers
-and model validation).
+Order microservice for a music store. It processes a checkout by obtaining customer,
+cart and catalog data from their respective services, validates the cart against the
+catalog, and persists an order with immutable item snapshots. It also exposes
+application identification, monitoring and OpenAPI/Swagger/Redoc documentation.
 
 ## Stack
 
@@ -31,29 +30,28 @@ and model validation).
 │   ├── asgi.py             # ASGI
 │   └── wsgi.py             # WSGI
 ├── core/                   # Core app (index + health)
-│   ├── urls.py             #   App routes (also mounts order and order_item)
+│   ├── urls.py             #   App routes (mounts order)
 │   ├── views.py            #   Endpoints (annotated with OpenAPI schemas)
 │   └── uptime.py           #   Tracks process uptime
 ├── order/                  # Orders app
 │   ├── migrations/         #   Database migrations (incl. 0002 — payment types)
-│   ├── serializers.py      #   OrderSerializer (nested items)
-│   ├── views.py            #   OrderViewSet (full CRUD)
+│   ├── serializers.py      #   Checkout request and nested order response serializers
+│   ├── services/process.py #   Checkout orchestration and persistence
+│   ├── views.py            #   OrderViewSet (create, query and delete)
 │   ├── urls.py             #   Router under /api/v1/order/
-│   └── models.py           #   Order model (UUID pk, status/payment choices)
+│   └── models.py           #   Order model (UUID pk, customer snapshot and timestamps)
 ├── order_item/             # Order items app
-│   ├── serializers.py      #   OrderItemSerializer
-│   ├── views.py            #   OrderItemViewSet (full CRUD)
-│   ├── urls.py             #   Router under /api/v1/order-item/
-│   └── models.py           #   OrderItem model (one product per order)
+│   └── models.py           #   Persisted catalog snapshot (not exposed independently)
 ├── docs/openapi/           # OpenAPI documentation (one module per app/endpoint)
 │   ├── config.py           #   Shared schema helpers
 │   ├── core/               #   index and health schemas
-│   ├── order/              #   create/list/retrieve/update/partial_update/destroy
-│   └── order_item/         #   create/list/retrieve/update/partial_update/destroy
+│   └── order/              #   create/list/retrieve/destroy
+├── helpers/                 # HTTP clients for customer, cart and catalog services
+├── validators/              # Catalog price and stock validation
 ├── tests/                  # Test suite
 │   ├── core/               #   endpoints + functional
 │   ├── order/              #   endpoints + functional (model, serializers, validation)
-│   └── order_item/         #   endpoints + functional (model, serializers, validation)
+│   └── order_item/         #   model validation for internal order snapshots
 ├── Dockerfile              # Application image
 ├── compose.yaml            # Local orchestration (port 8002)
 ├── entrypoint.sh           # Container entrypoint (migrate + runserver)
@@ -90,18 +88,9 @@ and model validation).
    cp .env.example .env
    ```
 
-4. Load the variables from `.env` and export `DEV_PROJECT_KEY` (required by Django's
-   `SECRET_KEY`):
-
-   ```bash
-   $(grep -v '^#' .env | grep -Ev '^\s*$' | sed 's/^/export /')
-   ```
-
-   or export it manually:
-
-   ```bash
-   export DEV_PROJECT_KEY=project_secret_key
-   ```
+4. Fill in `DEV_PROJECT_KEY` and the downstream service URLs in `.env`.
+   Django loads this file automatically. `CUSTOMER_SERVICE_URL`, `CART_SERVICE_URL`
+   and `CATALOG_SERVICE_URL` must point to the services used when an order is created.
 
 5. Apply migrations and start the server:
 
@@ -148,25 +137,33 @@ All endpoints live under the `/api/v1/` prefix.
 | GET    | `/api/v1/order/`               | List orders                                  |
 | POST   | `/api/v1/order/`               | Create order                                 |
 | GET    | `/api/v1/order/{uuid}/`        | Retrieve order (includes nested items)       |
-| PUT    | `/api/v1/order/{uuid}/`        | Update order                                 |
-| PATCH  | `/api/v1/order/{uuid}/`        | Partial update order                         |
 | DELETE | `/api/v1/order/{uuid}/`        | Delete order                                 |
-| GET    | `/api/v1/order-item/`          | List order items                             |
-| POST   | `/api/v1/order-item/`          | Create order item                            |
-| GET    | `/api/v1/order-item/{id}/`     | Retrieve order item                          |
-| PUT    | `/api/v1/order-item/{id}/`     | Update order item                            |
-| PATCH  | `/api/v1/order-item/{id}/`     | Partial update order item                    |
-| DELETE | `/api/v1/order-item/{id}/`     | Delete order item                            |
 | GET    | `/api/v1/schema/`              | OpenAPI schema (JSON)                        |
 | GET    | `/api/v1/docs/`                | Swagger UI                                   |
 | GET    | `/api/v1/redoc/`               | Redoc                                        |
 
-The `Order` model uses a UUID primary key and exposes `customer_id`, `customer_name`,
-`price`, `payment_type` (`payment slip` / `credit card`) and `status` (`PENDING`,
-`PAID`, `SHIPPED`, `DELIVERED`, `CANCELED`), with items nested in responses.
-The `OrderItem` model references an `Order` and holds `product_code`, `product_name`,
-`product_description`, `product_quantity` and `item_price`, constrained to one product
-per order. Orders validate themselves through `full_clean()` on save.
+`POST /api/v1/order/` accepts the checkout references below. It does not receive
+customer, cart or item snapshots directly.
+
+```json
+{
+  "customer": "5e8b0c11-d2f3-4a5b-8c9d-1e2f3a4b5c6d",
+  "cart": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "payment_type": "PS"
+}
+```
+
+`payment_type` is `PS` (Payment slip) or `CC` (Credit card). During processing, the
+service fetches the customer and cart, checks every cart item against the catalog's
+current price and stock, and writes the order atomically. A failed dependency,
+validation or database operation returns `500` with `{"order": "Order could not be
+processed"}`.
+
+Orders use UUID primary keys and expose the customer snapshot (`customer_id`,
+`customer_name`, optional `customer_email`, `customer_doc`), total `price`, displayed
+payment type, status, `created_at` and `updated_at`. Items are nested in responses and
+contain their UUID, product code, name, catalog URL, unit price, quantity and line
+price. They are internal order snapshots: no standalone `order_item` endpoint exists.
 
 Example index response:
 
@@ -174,7 +171,7 @@ Example index response:
 {
   "name": "Music Store Order Service",
   "version": "0.9.0",
-  "description": "Service for managing orders in a music store, exposing a REST API for orders and order items.",
+  "description": "Service for processing music-store checkouts and managing their orders.",
   "environment": "dev",
   "redoc_url": "/api/v1/redoc/",
   "health_url": "/api/v1/health/",
@@ -195,10 +192,10 @@ Example health response:
 ## OpenAPI documentation
 
 Documentation is written in a dedicated `docs/openapi/` module, one file per endpoint,
-instead of inline in the views. Each view is annotated with `@extend_schema_view` /
-`@extend_schema`, providing summary, description, tags, request/response bodies and
-examples for the whole domain — core (index/health), order and order_item. The schema
-is served at `/api/v1/schema/`, with Swagger UI at `/api/v1/docs/` and Redoc at
+instead of inline in the views. Each public operation is annotated with
+`@extend_schema_view` / `@extend_schema`, providing summary, description, tags,
+request/response bodies and examples for core (index/health) and orders. The schema is
+served at `/api/v1/schema/`, with Swagger UI at `/api/v1/docs/` and Redoc at
 `/api/v1/redoc/`.
 
 ## Tests
@@ -216,10 +213,9 @@ Add `--verbosity 2` to see each individual test. Coverage by area:
   methods, schema/swagger/redoc)
 - `tests/core/functional` — functional behavior (uptime increases between requests,
   index URLs pointing to live endpoints, etc.)
-- `tests/order/endpoints` and `tests/order_item/endpoints` — CRUD contract for every
-  endpoint (list, create, retrieve, update, partial update, delete)
-- `tests/order/functional` and `tests/order_item/functional` — model behavior,
-  serializer output and model validation (choices, constraints, required fields)
+- `tests/order/endpoints` — order endpoint contract (list, checkout creation,
+  retrieve and delete)
+- `tests/order/functional` — model behavior, serializer output and model validation
 
 ## Code quality
 

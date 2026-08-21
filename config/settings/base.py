@@ -3,13 +3,17 @@ from pathlib import Path
 
 import environ
 
-env = environ.Env()
-
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+env = environ.Env(debug=(bool, False))
+environ.Env.read_env(BASE_DIR / ".env")
+
 
 PROJECT_NAME = "Music Store Order Service"
 PROJECT_VERSION = "0.9.0"
-PROJECT_DESCRIPTION = "Service for managing orders in a music store, exposing a REST API for orders and order items."
+PROJECT_DESCRIPTION = (
+    "Service for processing music-store checkouts and managing their orders."
+)
 API_ROOT_PREFIX = "/api/v1/"
 
 SECRET_KEY = os.environ["DEV_PROJECT_KEY"]
@@ -17,6 +21,13 @@ SECRET_KEY = os.environ["DEV_PROJECT_KEY"]
 DEBUG = env.bool("DJANGO_DEBUG", default=False)
 
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
+
+# services urls
+CART_SERVICE_URL = env("CART_SERVICE_URL", default="")
+CATALOG_SERVICE_URL = env("CATALOG_SERVICE_URL", default="")
+CUSTOMER_SERVICE_URL = env("CUSTOMER_SERVICE_URL", default="")
+
+ORDER_DISPATCH_URLS = env.list("ORDER_DISPATCH_URLS", default=[])
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -111,11 +122,7 @@ SPECTACULAR_SETTINGS = {
         },
         {
             "name": "order",
-            "description": "Order management — create, retrieve, partial update, update and delete.",
-        },
-        {
-            "name": "order_item",
-            "description": "Order item management — creation, retrieval, update and delete.",
+            "description": "Checkout processing and order retrieval.",
         },
     ],
     "CONTACT": {
